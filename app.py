@@ -28,21 +28,29 @@ def predict():
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
+
+    # Ensure temp directory exists
+    temp_dir = 'temp'
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    temp_file_path = os.path.join(temp_dir, file.filename)
     
-    # Save the file to a temporary location
-    temp_file_path = os.path.join('temp', file.filename)
     try:
+        # Save the file to a temporary location
         file.save(temp_file_path)
 
-        # Load the Gradio interface and make a prediction
+        # Load the Gradio interface
         iface = gr.Interface.load("huggingface/Sakibrumu/Food_Image_Classification")
+        
+        # Make a prediction
         prediction = iface.predict([temp_file_path])[0]
-
+        
         # Return the prediction
         return jsonify(prediction)
     
     except Exception as e:
-        # Log the error and return a response
+        # Log the error
         print(f"Error during prediction: {e}")
         return jsonify({'error': str(e)}), 500
     
@@ -52,6 +60,5 @@ def predict():
             os.remove(temp_file_path)
 
 if __name__ == '__main__':
-    if not os.path.exists('temp'):
-        os.makedirs('temp')
-    app.run(debug=True)
+    # Run the app
+    app.run(debug=True, host='0.0.0.0', port=5000)
