@@ -1,0 +1,15 @@
+app:
+  name: Food Image Classifier
+  version: 1.0
+
+api:
+  token: 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
+  endpoint: http://127.0.0.1:5000
+
+logging:
+  level: INFO
+  file: app.log
+
+server:
+  host: 0.0.0.0
+  port: 5000
