@@ -1,77 +1,76 @@
-from flask import Flask, request, jsonify, send_from_directory
-from pymongo import MongoClient
-import os
-import requests
-from dotenv import load_dotenv
+const express = require('express');
+const { MongoClient, ServerApiVersion } = require('mongodb');
+const multer = require('multer');
+const path = require('path');
+require('dotenv').config();
 
-app = Flask(__name__)
+const app = express();
+const upload = multer({ dest: 'uploads/' });
 
-# Load environment variables
-load_dotenv()
+// MongoDB connection
+const uri = process.env.MONGO_URI;
+const client = new MongoClient(uri, {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  }
+});
 
-# MongoDB connection
-MONGO_URI = os.getenv('MONGO_URI')
-client = MongoClient(MONGO_URI)
-db = client['mydatabase']
-collection = db['mycollection']
+async function connectToDatabase() {
+  try {
+    await client.connect();
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.error('Failed to connect to MongoDB', error);
+  }
+}
 
-# Hugging Face API setup
-HF_MODEL_URL = os.getenv('HF_MODEL_URL')
-HF_API_TOKEN = os.getenv('HF_API_TOKEN')
+connectToDatabase();
 
-@app.route('/')
-def index():
-    return send_from_directory('.', 'index.html')
+const db = client.db('mydatabase');
+const collection = db.collection('mycollection');
 
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return jsonify({"error": "No file part"}), 400
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({"error": "No selected file"}), 400
-    if file:
-        # Save the file to a temporary location
-        file_path = os.path.join('/tmp', file.filename)
-        file.save(file_path)
+app.use(express.static('public'));
 
-        # Insert metadata into MongoDB
-        collection.insert_one({
-            'filename': file.filename,
-            'file_path': file_path
-        })
-        
-        return jsonify({"message": "File uploaded successfully"}), 200
+app.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
 
-@app.route('/predict', methods=['POST'])
-def predict():
-    file = request.files.get('file')
-    if not file:
-        return jsonify({"error": "No file provided"}), 400
+  try {
+    // Save metadata to MongoDB
+    await collection.insertOne({
+      filename: req.file.originalname,
+      filePath: req.file.path
+    });
 
-    # Prepare file for Hugging Face model
-    headers = {
-        'Authorization': f'Bearer {HF_API_TOKEN}',
-        'Content-Type': 'application/json'
-    }
-    response = requests.post(HF_MODEL_URL, headers=headers, files={'file': file})
-    
-    if response.status_code != 200:
-        return jsonify({"error": "Prediction request failed"}), 500
+    res.status(200).json({ message: 'File uploaded successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save file metadata' });
+  }
+});
 
-    prediction = response.json()
+app.post('/predict', upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No file provided' });
+  }
 
-    return jsonify(prediction)
+  // Implement prediction logic here using your Hugging Face model
+  // Example code to send file to model and get prediction
+  
+  res.status(200).json({ prediction: 'dummy prediction' });
+});
 
-@app.route('/data', methods=['GET'])
-def get_data():
-    documents = collection.find()
-    data = [{"_id": str(doc["_id"]), "filename": doc["filename"], "file_path": doc["file_path"]} for doc in documents]
-    return jsonify(data)
+app.get('/data', async (req, res) => {
+  try {
+    const documents = await collection.find().toArray();
+    res.status(200).json(documents);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to retrieve data' });
+  }
+});
 
-@app.route('/<path:filename>')
-def serve_static(filename):
-    return send_from_directory('.', filename)
-
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0')
+app.listen(3000, () => {
+  console.log('Server is running on http://localhost:3000');
+});
