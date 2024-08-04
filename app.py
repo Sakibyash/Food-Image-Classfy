@@ -1,64 +1,37 @@
-from flask import Flask, request, send_from_directory, jsonify
-import gradio as gr
+from flask import Flask, request, jsonify
+from gradio_client import Client
+import json
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 app = Flask(__name__)
 
-# Serve the index.html file
-@app.route('/')
-def index():
-    return send_from_directory('', 'index.html')
+# Get Hugging Face token from environment variables
+TOKEN = os.getenv('HUGGINGFACE_TOKEN')
+client = Client("Sakibrumu/Food_Image_Classification", token=TOKEN)
 
-# Serve static files (CSS, JS)
-@app.route('/static/<path:path>')
-def send_static(path):
-    return send_from_directory('static', path)
+# Load dish details
+with open('dish_details.json') as f:
+    dish_details = json.load(f)
 
-# Serve the dish_detail.json file
-@app.route('/dish_detail.json')
-def get_dish_details():
-    return send_from_directory('', 'dish_detail.json')
-
-# Prediction endpoint using Gradio
 @app.route('/predict', methods=['POST'])
 def predict():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
+    if 'img' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
 
-    # Ensure temp directory exists
-    temp_dir = 'temp'
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
+    file = request.files['img']
+    result = client.predict(img=file, api_name="/predict")
+    return jsonify(result)
 
-    temp_file_path = os.path.join(temp_dir, file.filename)
-    
-    try:
-        # Save the file to a temporary location
-        file.save(temp_file_path)
-
-        # Load the Gradio interface
-        iface = gr.Interface.load("huggingface/Sakibrumu/Food_Image_Classification")
-        
-        # Make a prediction
-        prediction = iface.predict([temp_file_path])[0]
-        
-        # Return the prediction
-        return jsonify(prediction)
-    
-    except Exception as e:
-        # Log the error
-        print(f"Error during prediction: {e}")
-        return jsonify({'error': str(e)}), 500
-    
-    finally:
-        # Clean up the temporary file
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+@app.route('/dish_details/<label>', methods=['GET'])
+def get_dish_details(label):
+    details = dish_details.get(label, None)
+    if details is None:
+        return jsonify({'error': 'Dish not found'}), 404
+    return jsonify(details)
 
 if __name__ == '__main__':
-    # Run the app
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
