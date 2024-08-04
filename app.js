@@ -7,56 +7,60 @@ async function predict() {
     }
 
     const formData = new FormData();
-    formData.append('img', file);
+    formData.append('file', file); // Ensure this matches the expected field name by the API
 
     try {
-        const response = await axios.post('https://hf.space/embed/Sakibrumu/Food_Image_Classification/api/predict/', formData, {
+        // Use your Hugging Face Space API endpoint
+        const response = await axios.post('https://sakibrumu-food-image-classification.hf.space/run/predict?__theme=light', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data'
             }
         });
 
-        // Display prediction result
-        const label = response.data[0].label;
+        const label = response.data.label; // Adjust based on the actual API response
         document.getElementById('result').innerText = `Prediction: ${label}`;
 
         // Fetch dish details
-        const detailsResponse = await fetchDishDetails(label);
-        displayDishDetails(detailsResponse);
+        const detailsResponse = await fetch('dish_details.json');
+        const detailsData = await detailsResponse.json();
+        const dishDetails = detailsData[label]; // Adjust based on how your JSON is structured
+
+        displayDishDetails(dishDetails);
     } catch (error) {
         console.error('Error making prediction:', error);
         document.getElementById('result').innerText = 'Error making prediction';
     }
 }
 
-async function fetchDishDetails(label) {
-    try {
-        const response = await fetch('dish_details.json');
-        const data = await response.json();
-
-        // Find the matching dish detail
-        for (const key in data) {
-            if (data[key].label === label) {
-                return data[key];
-            }
-        }
-
-        return null;
-    } catch (error) {
-        console.error('Error fetching dish details:', error);
-        return null;
+function previewImage() {
+    const fileInput = document.getElementById('imageUpload');
+    const file = fileInput.files[0];
+    if (!file) {
+        return;
     }
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const imgElement = document.createElement('img');
+        imgElement.src = event.target.result;
+        imgElement.style.maxWidth = '100%';
+        imgElement.style.maxHeight = '300px';
+        
+        const imagePreviewDiv = document.getElementById('imagePreview');
+        imagePreviewDiv.innerHTML = ''; // Clear previous previews
+        imagePreviewDiv.appendChild(imgElement);
+    };
+    reader.readAsDataURL(file);
 }
 
 function displayDishDetails(details) {
+    const detailsDiv = document.getElementById('dish-details');
     if (!details) {
-        document.getElementById('dish-details').innerText = 'No details available for this dish.';
+        detailsDiv.innerText = 'No details available for this dish.';
         return;
     }
     
-    const detailsDiv = document.getElementById('dish-details');
     detailsDiv.innerHTML = `
-        <h2>Dish Details</h2>
         <p><strong>Name:</strong> ${details.label}</p>
         <p><strong>Description:</strong> ${details.description}</p>
     `;
