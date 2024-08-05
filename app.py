@@ -1,31 +1,22 @@
-async function fetchDishDetails(label) {
-    try {
-        const response = await fetch('dish_details.json');
-        const data = await response.json();
+from flask import Flask, request, jsonify, render_template
+import requests
 
-        // Find the matching dish detail
-        for (const key in data) {
-            if (data[key].label === label) {
-                return data[key];
-            }
-        }
+app = Flask(__name__)
 
-        return null;
-    } catch (error) {
-        console.error('Error fetching dish details:', error);
-        return null;
-    }
-}
+HF_API_URL = 'https://api-inference.huggingface.co/models/Sakibrumu/Food_Image_Classification'
+HF_API_TOKEN = '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'
 
-function displayDishDetails(details) {
-    if (!details) {
-        document.getElementById('dish-details').innerText = 'No details available for this dish.';
-        return;
-    }
-    
-    const detailsDiv = document.getElementById('dish-details');
-    detailsDiv.innerHTML = `
-        <p><strong>Name:</strong> ${details.label}</p>
-        <p><strong>Description:</strong> ${details.description}</p>
-    `;
-}
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    image = request.files['image'].read()
+    headers = {"Authorization": f"Bearer {HF_API_TOKEN}"}
+    response = requests.post(HF_API_URL, files={"file": image}, headers=headers)
+    result = response.json()
+    return jsonify(result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
